@@ -9,7 +9,7 @@ def clean_data(path, std_out_threshold, std_dev_threshold, delete_rows = True):
     if 'date' in data.columns:
         data.drop(columns=['date'], inplace=True)
 
-    data.drop(columns=['id', 'home_team_abbr', 'away_team_abbr', 'home_pitcher', 'away_pitcher', 'season', 'home_team_season', 'away_team_season'], inplace=True)
+    data.drop(columns=['id', 'season', 'home_team_season', 'away_team_season'], inplace=True)
 
     numeric_columns = data.select_dtypes(include=['float64', 'int64']).columns
     means = data[numeric_columns].mean()

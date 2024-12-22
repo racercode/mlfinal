@@ -4,7 +4,6 @@ from hyperopt import STATUS_OK, Trials, fmin, hp, tpe
 import pandas as pd
 
 def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
-
     raw_X_train = X_train
     raw_y_train = y_train
 
@@ -14,14 +13,14 @@ def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
     y_train = y_train.drop(y_test.index)
 
     space = {
-        'max_depth': hp.quniform("max_depth", 3, 10, 1),
+        'max_depth': hp.quniform("max_depth", 3, 20, 1),
         'gamma': hp.uniform('gamma', 0, 5),
         'reg_alpha': hp.uniform('reg_alpha', 0, 50),
         'reg_lambda': hp.uniform('reg_lambda', 0, 1),
         'colsample_bytree': hp.uniform('colsample_bytree', 0.5, 1),
         'min_child_weight': hp.quniform('min_child_weight', 1, 10, 1),
-        'learning_rate': hp.uniform('learning_rate', 0.01, 0.2),
-        'n_estimators': 500,  # Early stopping will determine the effective count
+        'learning_rate': hp.uniform('learning_rate', 0.01, 0.3),
+        'n_estimators': 300,  # Early stopping will determine the effective count
     }
 
     # Objective function for hyperparameter tuning
@@ -35,6 +34,7 @@ def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
             eval_metric='logloss',
             early_stopping_rounds=10,
             seed=42,
+            enable_categorical=True,  # Enable categorical handling
         )
         
         # Training with early stopping
@@ -55,7 +55,7 @@ def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
         space=space,
         algo=tpe.suggest,
         max_evals=50,
-        trials=trials
+        trials=trials,
     )
 
     # Train final model with the best hyperparameters
@@ -67,6 +67,7 @@ def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
         objective='binary:logistic',
         eval_metric='logloss',
         seed=42,
+        enable_categorical=True,  # Enable categorical handling
     )
     
     final_model.fit(raw_X_train, raw_y_train)
@@ -74,15 +75,16 @@ def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
     # Validate final model on the validation set
     val_preds = final_model.predict_proba(X_validation)[:, 1]
     validation_auc = roc_auc_score(y_validation, val_preds)
+    validation_accuracy = accuracy_score(y_validation, (val_preds > 0.5).astype(int))
     print("Validation AUC:", validation_auc)
 
-
-
+    # Train final model with both train and validation sets for testing
     final_test_model = xgb.XGBClassifier(
         **best_hyperparams,
         objective='binary:logistic',
         eval_metric='logloss',
         seed=42,
+        enable_categorical=True,  # Enable categorical handling
     )
     
     final_test_model.fit(pd.concat([raw_X_train, X_validation]), pd.concat([raw_y_train, y_validation]))
@@ -95,4 +97,4 @@ def xgboost(X_train, y_train, X_validation, y_validation, test_dataset):
     test_preds = final_test_model.predict_proba(test_dataset)[:, 1]
     test_output = (test_preds > 0.5).astype(int)
 
-    return validation_auc, test_output
+    return validation_accuracy, test_output
